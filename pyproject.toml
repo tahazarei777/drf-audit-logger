@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=77.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drf-audit-logger"
+version = "1.0.0"
+description = "Audit logging for Django REST Framework with multilingual support"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "BSD-3-Clause"
+license-files = ["LICENSE.md"]
+authors = [
+    { name = "Taha Zarei", email = "tahazarei777@gmail.com" },
+]
+maintainers = [
+    { name = "Taha Zarei", email = "tahazarei777@gmail.com" },
+]
+keywords = [
+    "django",
+    "django-rest-framework",
+    "drf",
+    "audit",
+    "audit-log",
+    "audit-trail",
+    "logging",
+    "middleware",
+    "i18n",
+    "multilingual",
+    "api",
+    "signals",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Django :: 3.2",
+    "Framework :: Django :: 4.0",
+    "Framework :: Django :: 4.1",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+    "Django>=3.2",
+    "djangorestframework>=3.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.0.0",
+    "twine>=4.0.0",
+    "pytest>=7.0.0",
+    "pytest-django>=4.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/tahazarei777/drf-audit-logger"
+Repository = "https://github.com/tahazarei777/drf-audit-logger.git"
+"Bug Tracker" = "https://github.com/tahazarei777/drf-audit-logger/issues"
+Changelog = "https://github.com/tahazarei777/drf-audit-logger/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["drf_audit_logger*"]
+exclude = ["tests*", "test_project*"]
+
+[tool.setuptools.package-data]
+drf_audit_logger = [
+    "migrations/*.py",
+    "locale/*/LC_MESSAGES/*.po",
+    "locale/*/LC_MESSAGES/*.mo",
+]
