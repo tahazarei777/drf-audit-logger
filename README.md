@@ -305,42 +305,6 @@ Navigate to `/admin/drf_audit_logger/auditlog/` to browse logs with:
 
 ---
 
-## Project Structure
-
-```text
-drf_audit_logger/
-├── migrations/
-├── locale/
-│   ├── en/LC_MESSAGES/
-│   └── fa/LC_MESSAGES/
-├── __init__.py
-├── _local.py
-├── admin.py
-├── apps.py
-├── conf.py
-├── middleware.py
-├── models.py
-├── permissions.py
-├── renderers.py
-├── serializers.py
-├── services.py
-├── signals.py
-├── urls.py
-└── views.py
-```
-
----
-
-## Roadmap
-
-Planned for future releases:
-
-- 🌍 More built-in languages (Arabic, Chinese, Spanish, ...)
-- 🧹 Automatic log rotation and cleanup
-- 🔍 Elasticsearch backend for large-scale deployments
-- 📊 Dashboard with charts
-- 🔔 Webhook notifications
-
 ---
 
 ## Contributing
