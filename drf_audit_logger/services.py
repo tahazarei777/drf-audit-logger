@@ -44,17 +44,18 @@ def serialize_value(value):
 # CHANGE DETECTION
 # ============================================================
 
-def detect_changes(instance):
+def detect_changes_from_old(instance, old_values):
     """
-    Return a dictionary of changes for an update.
-    NOTE: `field_verbose` is NOT stored; it is resolved at render time.
-    """
-    if not instance.pk:
-        return None
+    Compare the instance's current values with the pre-captured old values.
 
-    try:
-        old_instance = instance.__class__.objects.get(pk=instance.pk)
-    except instance.__class__.DoesNotExist:
+    Args:
+        instance: the saved model instance
+        old_values: dict of {field_name: old_value} captured in pre_save
+
+    Returns:
+        dict of changes or None
+    """
+    if not old_values:
         return None
 
     changes = {}
@@ -66,9 +67,11 @@ def detect_changes(instance):
             continue
         if field.name in ('created_at', 'updated_at'):
             continue
+        if field.name not in old_values:
+            continue
 
         try:
-            old_value = getattr(old_instance, field.name, None)
+            old_value = old_values[field.name]
             new_value = getattr(instance, field.name, None)
         except Exception:
             continue
@@ -180,13 +183,16 @@ class AuditLogService:
         )
 
     @staticmethod
-    def log_update(instance, user=None, ip_address=None, user_agent=None):
+    def log_update(instance, user=None, ip_address=None, user_agent=None, old_values=None):
+        """Log an update. Requires `old_values` captured in pre_save."""
         from .models import AuditLog
         if not is_model_logging_enabled():
             return None
-        changes = detect_changes(instance)
+
+        changes = detect_changes_from_old(instance, old_values)
         if not changes:
             return None
+
         return AuditLogService.create_log(
             action=AuditLog.ACTION_UPDATE,
             user=user,

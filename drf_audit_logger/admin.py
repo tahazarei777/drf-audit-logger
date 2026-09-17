@@ -84,7 +84,7 @@ class AuditLogAdmin(admin.ModelAdmin):
     @admin.display(description=_('Message'))
     def message_display(self, obj):
         return format_html(
-            '<div style="background:#e7f3ff;padding:12px;'
+            '<div style="background:#121212;padding:12px;color:white;border:1px solid #121212;'
             'border-radius:4px;font-size:14px;">{}</div>',
             obj.message,
         )

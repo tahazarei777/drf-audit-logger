@@ -4,7 +4,8 @@ from django.contrib.auth.signals import (
     user_logged_out,
     user_login_failed,
 )
-from django.db.models.signals import post_save, post_delete
+from django.db import models as dj_models
+from django.db.models.signals import post_save, post_delete, pre_save
 
 from ._local import (
     get_current_user,
@@ -20,7 +21,56 @@ from .services import AuditLogService
 
 
 # ============================================================
-# MODEL SIGNALS
+# SNAPSHOT STORAGE
+# ============================================================
+# We store the "before" state of each instance in memory before save,
+# so that post_save can compare old vs new values.
+
+_OLD_VALUES = {}
+
+
+def _make_key(instance):
+    return f"{instance.__class__.__name__}:{instance.pk}"
+
+
+# ============================================================
+# PRE_SAVE: capture old values before they're overwritten
+# ============================================================
+
+def handle_pre_save(sender, instance, raw, **kwargs):
+    """Capture current DB values before the save happens."""
+    if raw:
+        return
+    if not is_model_logging_enabled():
+        return
+    if is_model_excluded(sender):
+        return
+
+    # If it's a new object (no pk yet), there's nothing to snapshot
+    if not instance.pk:
+        return
+
+    # Fetch the current DB state
+    try:
+        old_instance = sender.objects.get(pk=instance.pk)
+    except sender.DoesNotExist:
+        return
+
+    # Snapshot all concrete field values
+    snapshot = {}
+    for field in old_instance._meta.get_fields():
+        if not isinstance(field, dj_models.Field):
+            continue
+        try:
+            snapshot[field.name] = getattr(old_instance, field.name, None)
+        except Exception:
+            continue
+
+    _OLD_VALUES[_make_key(instance)] = snapshot
+
+
+# ============================================================
+# POST_SAVE
 # ============================================================
 
 def handle_post_save(sender, instance, created, raw, **kwargs):
@@ -36,9 +86,21 @@ def handle_post_save(sender, instance, created, raw, **kwargs):
     ua = get_current_user_agent()
 
     if created:
-        AuditLogService.log_create(instance=instance, user=user, ip_address=ip, user_agent=ua)
+        AuditLogService.log_create(
+            instance=instance, user=user, ip_address=ip, user_agent=ua,
+        )
     else:
-        AuditLogService.log_update(instance=instance, user=user, ip_address=ip, user_agent=ua)
+        # Retrieve the old values we captured in pre_save
+        key = _make_key(instance)
+        old_values = _OLD_VALUES.pop(key, None)
+
+        AuditLogService.log_update(
+            instance=instance,
+            user=user,
+            ip_address=ip,
+            user_agent=ua,
+            old_values=old_values,
+        )
 
 
 def handle_post_delete(sender, instance, **kwargs):
@@ -51,7 +113,9 @@ def handle_post_delete(sender, instance, **kwargs):
     ip = get_current_ip()
     ua = get_current_user_agent()
 
-    AuditLogService.log_delete(instance=instance, user=user, ip_address=ip, user_agent=ua)
+    AuditLogService.log_delete(
+        instance=instance, user=user, ip_address=ip, user_agent=ua,
+    )
 
 
 # ============================================================
@@ -99,6 +163,7 @@ def _get_ip_from_request(request):
 # ============================================================
 
 def register_signals():
+    pre_save.connect(handle_pre_save, dispatch_uid='drf_audit_logger_pre_save')
     post_save.connect(handle_post_save, dispatch_uid='drf_audit_logger_post_save')
     post_delete.connect(handle_post_delete, dispatch_uid='drf_audit_logger_post_delete')
     user_logged_in.connect(handle_user_logged_in, dispatch_uid='drf_audit_logger_user_logged_in')
