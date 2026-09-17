@@ -1,0 +1,128 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: drf-audit-logger 1.0.0\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Login"
+msgstr "Login"
+
+msgid "Logout"
+msgstr "Logout"
+
+msgid "Login Failed"
+msgstr "Login Failed"
+
+msgid "Create"
+msgstr "Create"
+
+msgid "Update"
+msgstr "Update"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Custom"
+msgstr "Custom"
+
+msgid "User %(user)s logged in"
+msgstr "User %(user)s logged in"
+
+msgid "User %(user)s logged out"
+msgstr "User %(user)s logged out"
+
+msgid "Failed login attempt from IP %(ip)s"
+msgstr "Failed login attempt from IP %(ip)s"
+
+msgid "Failed login attempt"
+msgstr "Failed login attempt"
+
+msgid "User %(user)s created %(model)s \"%(name)s\""
+msgstr "User %(user)s created %(model)s \"%(name)s\""
+
+msgid "User %(user)s updated %(model)s \"%(name)s\""
+msgstr "User %(user)s updated %(model)s \"%(name)s\""
+
+msgid "User %(user)s changed \"%(field)s\" of %(model)s \"%(name)s\" from \"%(old)s\" to \"%(new)s\""
+msgstr "User %(user)s changed \"%(field)s\" of %(model)s \"%(name)s\" from \"%(old)s\" to \"%(new)s\""
+
+msgid "User %(user)s updated %(model)s \"%(name)s\" (%(count)d changes)"
+msgstr "User %(user)s updated %(model)s \"%(name)s\" (%(count)d changes)"
+
+msgid "User %(user)s deleted %(model)s \"%(name)s\""
+msgstr "User %(user)s deleted %(model)s \"%(name)s\""
+
+msgid "Custom event by %(user)s"
+msgstr "Custom event by %(user)s"
+
+msgid "Unknown User"
+msgstr "Unknown User"
+
+msgid "empty"
+msgstr "empty"
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "No"
+msgstr "No"
+
+msgid "object"
+msgstr "object"
+
+msgid "Audit Log"
+msgstr "Audit Log"
+
+msgid "Audit Logs"
+msgstr "Audit Logs"
+
+msgid "Only superusers can access audit logs."
+msgstr "Only superusers can access audit logs."
+
+msgid "Only staff members can access audit logs."
+msgstr "Only staff members can access audit logs."
+
+msgid "No changes recorded."
+msgstr "No changes recorded."
+
+msgid "No metadata."
+msgstr "No metadata."
+
+msgid "Event Information"
+msgstr "Event Information"
+
+msgid "User"
+msgstr "User"
+
+msgid "Affected Object"
+msgstr "Affected Object"
+
+msgid "Changes"
+msgstr "Changes"
+
+msgid "Metadata"
+msgstr "Metadata"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Timestamp"
+msgstr "Timestamp"
+
+msgid "Model Name"
+msgstr "Model Name"
+
+msgid "Object ID"
+msgstr "Object ID"
+
+msgid "Object Representation"
+msgstr "Object Representation"
+
+msgid "IP Address"
+msgstr "IP Address"
+
+msgid "User Agent"
+msgstr "User Agent"
