@@ -1,4 +1,11 @@
-"""Message renderer for drf-audit-logger."""
+"""Message renderer for drf-audit-logger.
+
+All messages are rendered using gettext, so they automatically adapt
+to the active language at display time.
+
+Field verbose names are looked up dynamically from the model,
+so translations of fields work at render time (not at storage time).
+"""
 from django.apps import apps
 from django.utils.translation import gettext as _
 
@@ -8,33 +15,44 @@ from django.utils.translation import gettext as _
 # ============================================================
 
 def get_user_display(log):
-    """Human-readable name for the user."""
     return log.user_display
 
 
-def get_model_verbose_name(log):
-    """
-    Return the translated verbose_name of the model.
-
-    Tries to find the actual model class by name and use its
-    verbose_name. Falls back to the raw model_name string.
-    """
-    if not log.model_name:
-        return _('object')
-
-    # جستجو در همه اپلیکیشن‌ها برای پیدا کردن مدل
+def find_model_class(model_name):
+    """Find a model class by its name across all apps."""
+    if not model_name:
+        return None
     for app_config in apps.get_app_configs():
         for model in app_config.get_models():
-            if model.__name__ == log.model_name:
-                # verbose_name با gettext_lazy تعریف شده، پس خودکار ترجمه می‌شود
-                return model._meta.verbose_name
+            if model.__name__ == model_name:
+                return model
+    return None
 
-    # اگر مدل پیدا نشد، از خود رشته استفاده کن
-    return log.model_name
+
+def get_model_verbose_name(log):
+    """Return the translated verbose_name of the model (dynamic)."""
+    model = find_model_class(log.model_name)
+    if model is not None:
+        return model._meta.verbose_name
+    return log.model_name or _('object')
+
+
+def get_field_verbose_name(log, field_name):
+    """
+    Look up the field's verbose_name from the model at render time.
+    This makes field names translatable and dynamic.
+    """
+    model = find_model_class(log.model_name)
+    if model is not None:
+        try:
+            field = model._meta.get_field(field_name)
+            return field.verbose_name
+        except Exception:
+            pass
+    return field_name.replace('_', ' ').title()
 
 
 def format_value(value):
-    """Format a value for display in a message."""
     if value is None:
         return _('empty')
     if value is True:
@@ -96,7 +114,7 @@ def render_update(log):
 
     changes = log.changes
 
-    # تغییر تک‌فیلد
+    # Single field
     if len(changes) == 1:
         field_name, change_data = next(iter(changes.items()))
         if isinstance(change_data, dict) and 'old' in change_data and 'new' in change_data:
@@ -105,14 +123,14 @@ def render_update(log):
                 'from "%(old)s" to "%(new)s"'
             ) % {
                 'user': get_user_display(log),
-                'field': change_data.get('field_verbose', field_name),
+                'field': get_field_verbose_name(log, field_name),  # dynamic
                 'model': get_model_verbose_name(log),
                 'name': log.object_repr or f"#{log.object_id}",
                 'old': format_value(change_data.get('old')),
                 'new': format_value(change_data.get('new')),
             }
 
-    # چند فیلد
+    # Multiple fields
     return _('User %(user)s updated %(model)s "%(name)s" (%(count)d changes)') % {
         'user': get_user_display(log),
         'model': get_model_verbose_name(log),

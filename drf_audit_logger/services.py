@@ -1,3 +1,6 @@
+"""
+Audit log service for drf-audit-logger.
+"""
 from django.db import models
 
 from .conf import (
@@ -7,32 +10,21 @@ from .conf import (
     is_model_logging_enabled,
 )
 
+
 # ============================================================
 # HELPERS
 # ============================================================
 
-def get_field_verbose_name(model, field_name):
-    """Return the translated verbose_name of a model field."""
-    try:
-        field = model._meta.get_field(field_name)
-        return field.verbose_name
-    except Exception:
-        return field_name.replace('_', ' ').title()
-
-
 def is_sensitive_field(field_name):
-    """Check if a field is in the sensitive list."""
     sensitive = get_sensitive_fields()
     return field_name.lower() in [f.lower() for f in sensitive]
 
 
 def mask_value(value):
-    """Replace sensitive value with a mask."""
     return '***MASKED***'
 
 
 def serialize_value(value):
-    """Convert a value to a JSON-serializable format."""
     if value is None:
         return None
     if isinstance(value, (str, int, float, bool)):
@@ -54,19 +46,8 @@ def serialize_value(value):
 
 def detect_changes(instance):
     """
-    Compare current instance values with the database values
-    and return a dictionary of changes.
-
-    Returns:
-        {
-            "field_name": {
-                "old": <old value>,
-                "new": <new value>,
-                "field_verbose": <translated verbose name>,
-            },
-            ...
-        }
-        or None if no changes.
+    Return a dictionary of changes for an update.
+    NOTE: `field_verbose` is NOT stored; it is resolved at render time.
     """
     if not instance.pk:
         return None
@@ -99,13 +80,11 @@ def detect_changes(instance):
             changes[field.name] = {
                 'old': mask_value(old_value),
                 'new': mask_value(new_value),
-                'field_verbose': get_field_verbose_name(instance.__class__, field.name),
             }
         else:
             changes[field.name] = {
                 'old': serialize_value(old_value),
                 'new': serialize_value(new_value),
-                'field_verbose': get_field_verbose_name(instance.__class__, field.name),
             }
 
     return changes if changes else None
@@ -113,7 +92,6 @@ def detect_changes(instance):
 
 def build_create_changes(instance):
     changes = {}
-
     for field in instance._meta.get_fields():
         if not isinstance(field, models.Field):
             continue
@@ -142,21 +120,27 @@ def build_delete_changes(instance):
     return build_create_changes(instance)
 
 
+# ============================================================
+# SERVICE
+# ============================================================
+
 class AuditLogService:
 
     @staticmethod
     def create_log(
-            action,
-            user=None,
-            instance=None,
-            changes=None,
-            metadata=None,
-            ip_address=None,
-            user_agent=None,
+        action,
+        user=None,
+        instance=None,
+        changes=None,
+        metadata=None,
+        ip_address=None,
+        user_agent=None,
     ):
         from .models import AuditLog
+
         if instance is not None and is_model_excluded(instance.__class__):
             return None
+
         model_name = ''
         object_id = ''
         object_repr = ''
@@ -168,6 +152,7 @@ class AuditLogService:
                 object_repr = str(instance)[:255]
             except Exception:
                 object_repr = ''
+
         return AuditLog.objects.create(
             action=action,
             user=user,
@@ -183,17 +168,13 @@ class AuditLogService:
     @staticmethod
     def log_create(instance, user=None, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         if not is_model_logging_enabled():
             return None
-
-        changes = build_create_changes(instance)
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_CREATE,
             user=user,
             instance=instance,
-            changes=changes,
+            changes=build_create_changes(instance),
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -201,14 +182,11 @@ class AuditLogService:
     @staticmethod
     def log_update(instance, user=None, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         if not is_model_logging_enabled():
             return None
-
         changes = detect_changes(instance)
         if not changes:
             return None
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_UPDATE,
             user=user,
@@ -221,17 +199,13 @@ class AuditLogService:
     @staticmethod
     def log_delete(instance, user=None, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         if not is_model_logging_enabled():
             return None
-
-        changes = build_delete_changes(instance)
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_DELETE,
             user=user,
             instance=instance,
-            changes=changes,
+            changes=build_delete_changes(instance),
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -239,7 +213,6 @@ class AuditLogService:
     @staticmethod
     def log_login(user, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_LOGIN,
             user=user,
@@ -250,7 +223,6 @@ class AuditLogService:
     @staticmethod
     def log_logout(user, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_LOGOUT,
             user=user,
@@ -261,11 +233,9 @@ class AuditLogService:
     @staticmethod
     def log_login_failed(username=None, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         metadata = {}
         if username:
             metadata['username'] = username
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_LOGIN_FAILED,
             user=None,
@@ -277,7 +247,6 @@ class AuditLogService:
     @staticmethod
     def log_custom(user, message_id, params=None, ip_address=None, user_agent=None):
         from .models import AuditLog
-
         return AuditLogService.create_log(
             action=AuditLog.ACTION_CUSTOM,
             user=user,
@@ -289,6 +258,10 @@ class AuditLogService:
             user_agent=user_agent,
         )
 
+
+# ============================================================
+# PUBLIC API
+# ============================================================
 
 def log(user, action='custom', message_id=None, params=None, **kwargs):
     if action == 'custom':

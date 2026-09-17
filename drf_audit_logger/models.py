@@ -11,6 +11,7 @@ class AuditLog(models.Model):
     ACTION_UPDATE = 'update'
     ACTION_DELETE = 'delete'
     ACTION_CUSTOM = 'custom'
+
     ACTION_CHOICES = [
         (ACTION_LOGIN, _('Login')),
         (ACTION_LOGOUT, _('Logout')),
@@ -20,12 +21,14 @@ class AuditLog(models.Model):
         (ACTION_DELETE, _('Delete')),
         (ACTION_CUSTOM, _('Custom')),
     ]
+
     action = models.CharField(
         _('Action'),
         max_length=32,
         choices=ACTION_CHOICES,
         db_index=True,
     )
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name=_('User'),
@@ -35,11 +38,13 @@ class AuditLog(models.Model):
         related_name='audit_logs',
         db_index=True,
     )
+
     timestamp = models.DateTimeField(
         _('Timestamp'),
         auto_now_add=True,
         db_index=True,
     )
+
     model_name = models.CharField(
         _('Model Name'),
         max_length=100,
@@ -62,18 +67,12 @@ class AuditLog(models.Model):
         help_text=_('String representation of the object at event time.'),
     )
 
-    # ============================================================
-    # CHANGES
-    # ============================================================
     changes = models.JSONField(
         _('Changes'),
         null=True,
         blank=True,
     )
 
-    # ============================================================
-    # REQUEST METADATA
-    # ============================================================
     ip_address = models.GenericIPAddressField(
         _('IP Address'),
         null=True,
@@ -85,9 +84,6 @@ class AuditLog(models.Model):
         blank=True,
     )
 
-    # ============================================================
-    # CUSTOM EVENTS
-    # ============================================================
     metadata = models.JSONField(
         _('Metadata'),
         null=True,
@@ -95,9 +91,6 @@ class AuditLog(models.Model):
         help_text=_('For custom events: {"message_id": "...", "params": {...}}'),
     )
 
-    # ============================================================
-    # META
-    # ============================================================
     class Meta:
         verbose_name = _('Audit Log')
         verbose_name_plural = _('Audit Logs')
@@ -111,9 +104,6 @@ class AuditLog(models.Model):
     def __str__(self):
         return f"[{self.timestamp:%Y-%m-%d %H:%M}] {self.action} - {self.user_display}"
 
-    # ============================================================
-    # PROPERTIES
-    # ============================================================
     @property
     def user_display(self):
         """Human-readable name for the user."""
@@ -126,7 +116,7 @@ class AuditLog(models.Model):
 
     @property
     def message(self):
-        """Translated message for the active language (Lazy Translation)."""
+        """Translated message for the active language."""
         from .renderers import render_audit_message
         return render_audit_message(self)
 
@@ -134,11 +124,7 @@ class AuditLog(models.Model):
     def action_display(self):
         return self.get_action_display()
 
-    # ============================================================
-    # METHODS
-    # ============================================================
     def get_message_in_language(self, language_code):
-        """Return message in a specific language without changing active language."""
         from django.utils import translation
         with translation.override(language_code):
             return self.message
