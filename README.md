@@ -1,3 +1,4 @@
+## `README.md` — آپدیت‌شده
 
 # DRF Audit Logger
 
@@ -17,6 +18,33 @@ Whether you need a simple audit trail for compliance, a debugging tool for track
 
 ---
 
+## ⚠️ Upgrade Notice — v1.0.1 (Critical Fix)
+
+If you are upgrading from **v1.0.0**, please read this section.
+
+**v1.0.0 had a critical bug:** `AuditLogMiddleware` built a fresh `DRFRequest` using all configured authenticators — including `SessionAuthentication`. That authenticator's `enforce_csrf()` reads `request.POST`, which on a Django request permanently consumes the request stream (`request._read_started = True`). As a result:
+
+- Django admin form submissions failed with CSRF errors.
+- Any `POST` view relying on `request.POST` / `request.body` received an empty body.
+- Users could not create or edit records via the admin panel.
+
+**v1.0.1 fixes this** by:
+- Excluding `SessionAuthentication` from the middleware's authenticator list.
+- Resolving session-based users from `request.user` (already set by Django's `AuthenticationMiddleware`) — no body access.
+- Calling non-session authenticators (JWT, Token, …) directly on the Django request — they only read headers, never the body.
+
+**No configuration changes are required.** Just upgrade:
+
+```bash
+pip install --upgrade drf-audit-logger
+```
+
+If you previously disabled or reordered this middleware as a workaround, you can safely restore the default setup described below.
+
+For full details, see [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 ## Features
 
 - ✅ **Automatic logging** via Django signals — no code changes in your models or views
@@ -27,6 +55,7 @@ Whether you need a simple audit trail for compliance, a debugging tool for track
 - ✅ **Dynamic field names** from `field.verbose_name` (auto-translated)
 - ✅ **Sensitive field masking** (`password`, `token`, `api_key`, ...)
 - ✅ **Works with any authentication system** (Session, JWT, Token, OAuth, Custom)
+- ✅ **Safe with Django admin** — never consumes the request body
 - ✅ **Custom user model support** via `AUTH_USER_MODEL`
 - ✅ **Request metadata capture** — IP address, user agent
 - ✅ **Configurable model exclusions** via `AUDIT_LOG_EXCLUDE_MODEL_LOGGING`
@@ -520,11 +549,16 @@ Navigate to `/admin/drf_audit_logger/auditlog/` to browse logs with:
 
 ## How It Works
 
-1. `AuditLogMiddleware` authenticates the request using **DRF's configured authenticators** (JWT, Token, Session, etc.).
-2. It stores `request.user`, `IP`, and `user-agent` in thread-local storage.
-3. Django's `pre_save`, `post_save`, and `post_delete` signals trigger the audit service.
-4. The service detects changes, masks sensitive fields, and stores raw data.
-5. Messages are rendered **dynamically at display time** using `gettext`.
+1. `AuditLogMiddleware` runs after Django's `AuthenticationMiddleware`.
+2. For **session-authenticated** requests, it reads `request.user` — which is already populated from the session. This does **not** touch the request body.
+3. For **header-based** authentication (JWT, DRF Token, custom), it calls each non-session authenticator directly on the Django request. These only inspect headers, never the body.
+4. `SessionAuthentication` is deliberately **excluded** from the middleware because its `enforce_csrf()` reads `request.POST`, which would consume the request stream and break the Django admin and any downstream view relying on `request.POST` or `request.body`.
+5. It stores `request.user`, IP, and user-agent in thread-local storage.
+6. Django's `pre_save`, `post_save`, and `post_delete` signals trigger the audit service.
+7. The service detects changes, masks sensitive fields, and stores raw data.
+8. Messages are rendered **dynamically at display time** using `gettext`.
+
+> **Design note:** `AuditLogMiddleware` never reads `request.body` or `request.POST`. This guarantee is what allows it to run safely alongside Django's `CsrfViewMiddleware` and the Django admin.
 
 ---
 
@@ -534,6 +568,7 @@ Navigate to `/admin/drf_audit_logger/auditlog/` to browse logs with:
 - **Superuser-only API access**: all endpoints are protected by `IsSuperUser`.
 - **Read-only logs**: audit entries cannot be modified via admin or API.
 - **Session-based admin**: the Django admin uses session authentication as usual.
+- **Body-safe middleware**: never consumes the request stream, so CSRF, admin forms, file uploads, and streaming bodies all keep working.
 
 ---
 
@@ -559,9 +594,21 @@ Navigate to `/admin/drf_audit_logger/auditlog/` to browse logs with:
 4. **Restart the Django server** (translations are loaded at startup).
 5. **Verify `.mo` files exist** next to `.po` files.
 
-### `AuditLogMiddleware` breaks my admin login
+### Django admin — cannot save forms / CSRF failures / empty `POST`
 
-Make sure `AuditLogMiddleware` is placed **after** `AuthenticationMiddleware` and **after** any custom middleware that runs on the admin paths. If you have a middleware that checks `request.user` before DRF authenticates, place `AuditLogMiddleware` **before** it.
+**If you are on v1.0.0**, this is a known bug fixed in **v1.0.1**. The old middleware consumed the request body when `SessionAuthentication` was enabled, which broke the admin panel.
+
+Upgrade:
+
+```bash
+pip install --upgrade drf-audit-logger
+```
+
+If you are on v1.0.1 or later and still see this behavior, please open an issue with your full `MIDDLEWARE` list and `REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES`.
+
+### `AuditLogMiddleware` ordering
+
+Place `AuditLogMiddleware` **after** `django.contrib.auth.middleware.AuthenticationMiddleware` (so `request.user` is available) and **before** any custom middleware that depends on `request.user`.
 
 ### Changes are not detected on update
 
@@ -577,6 +624,24 @@ Or compile manually:
 ```powershell
 msgfmt locale\fa\LC_MESSAGES\django.po -o locale\fa\LC_MESSAGES\django.mo
 ```
+
+---
+
+## Changelog
+
+For the full history, see [CHANGELOG.md](CHANGELOG.md).
+
+### [1.0.1] — Critical fix
+
+- **Fixed:** `AuditLogMiddleware` no longer consumes the request body.
+  Previously, building a `DRFRequest` with `SessionAuthentication` triggered
+  `enforce_csrf()`, which reads `request.POST` and permanently marked the
+  request stream as consumed. This broke Django admin form submissions and
+  any POST view relying on `request.POST` / `request.body`.
+- **Changed:** `SessionAuthentication` is now excluded from the middleware's
+  authenticator list. Session users are resolved from `request.user`.
+- **Changed:** Non-session authenticators (JWT, Token, …) are called directly
+  on the Django request instead of via a wrapper `DRFRequest`.
 
 ---
 
@@ -600,6 +665,7 @@ https://github.com/tahazarei777/drf-audit-logger/issues
 Include:
 
 - Your Python / Django / DRF versions
+- The version of `drf-audit-logger` you are using
 - Minimal reproduction steps
 - The expected vs actual behavior
 - Any relevant logs or tracebacks
@@ -611,3 +677,4 @@ Include:
 Licensed under the **BSD 3-Clause License**. See [LICENSE.md](LICENSE.md) for details.
 
 Copyright © 2025, Taha Zarei.
+

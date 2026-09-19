@@ -3,11 +3,19 @@ AuditLogMiddleware for drf-audit-logger.
 
 Authenticates the request using DRF's configured authenticators,
 sets `request.user` for downstream middleware, and captures IP / User-Agent.
+
+Important:
+    This middleware MUST NOT read `request.body` or `request.POST`.
+    Reading them consumes the request stream and breaks:
+      - Django admin form submissions (CSRF / POST data)
+      - Any downstream view that expects the body intact
+    In particular, `SessionAuthentication.enforce_csrf()` reads
+    `request.POST`, so it must never be invoked here.
 """
 import logging
 
 from django.utils.module_loading import import_string
-from rest_framework.request import Request as DRFRequest
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.settings import api_settings as drf_settings
 
 from . import _local
@@ -23,10 +31,29 @@ class AuditLogMiddleware:
 
     @staticmethod
     def _load_authenticators():
+        """
+        Load DRF authenticators EXCEPT SessionAuthentication.
+
+        Why exclude SessionAuthentication?
+        ----------------------------------
+        Its `authenticate()` calls `enforce_csrf()`, which reads
+        `request.POST`. On a Django HttpRequest, accessing `.POST` triggers
+        `_load_post_and_files()` → FormParser.parse(stream) → `stream.read()`,
+        which sets `request._read_started = True` and permanently marks the
+        body as consumed. Every later access to `request.POST` (including
+        Django's CsrfViewMiddleware) then returns empty, and CSRF checks fail.
+
+        Session-authenticated users are instead resolved from
+        `request.user` (set by Django's AuthenticationMiddleware).
+        """
         instances = []
         for entry in getattr(drf_settings, "DEFAULT_AUTHENTICATION_CLASSES", ()):
             try:
                 cls = import_string(entry) if isinstance(entry, str) else entry
+
+                if isinstance(cls, type) and issubclass(cls, SessionAuthentication):
+                    continue
+
                 instances.append(cls())
             except Exception as exc:
                 logger.warning("Could not load authenticator %r: %s", entry, exc)
@@ -50,23 +77,32 @@ class AuditLogMiddleware:
         auth_method = None
         auth_token = None
 
-        if self._authenticators:
-            try:
-                drf_request = DRFRequest(request, authenticators=self._authenticators)
-                drf_user = drf_request.user
-                if drf_user and drf_user.is_authenticated:
-                    user = drf_user
-                    auth_token = getattr(drf_request, "auth", None)
-                    authenticator = getattr(drf_request, "_authenticator", None)
-                    auth_method = type(authenticator).__name__ if authenticator else "DRF"
-            except Exception as exc:
-                logger.debug("DRF auth attempt failed: %s", exc)
+        # 1) Session-based user — already set by AuthenticationMiddleware.
+        #    No body access, no CSRF enforcement, no side effects.
+        dj_user = getattr(request, "user", None)
+        if dj_user is not None and dj_user.is_authenticated:
+            user = dj_user
+            auth_method = "DjangoSessionAuthentication"
 
+        # 2) Otherwise try the non-session authenticators (JWT, Token, ...).
+        #    These only read headers, never the body.
         if user is None:
-            dj_user = getattr(request, "user", None)
-            if dj_user is not None and dj_user.is_authenticated:
-                user = dj_user
-                auth_method = "DjangoSessionAuthentication"
+            for authenticator in self._authenticators:
+                try:
+                    result = authenticator.authenticate(request)
+                except Exception as exc:
+                    logger.debug(
+                        "Auth attempt failed (%s): %s",
+                        type(authenticator).__name__, exc,
+                    )
+                    continue
+
+                if result is None:
+                    continue
+
+                user, auth_token = result
+                auth_method = type(authenticator).__name__
+                break
 
         if user is not None:
             request.user = user

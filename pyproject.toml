@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drf-audit-logger"
-version = "1.0.0"
+version = "1.0.1"
 description = "Audit logging for Django REST Framework with multilingual support"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -31,7 +31,7 @@ keywords = [
     "signals",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Framework :: Django",
     "Framework :: Django :: 3.2",
     "Framework :: Django :: 4.0",
